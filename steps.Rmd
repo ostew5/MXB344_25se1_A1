@@ -1,0 +1,144 @@
+1.  **Set Up Your Project Environment**
+
+    -   Create a new project directory (e.g. `MXB344_Assignment1/`).\
+
+    -   Inside, place the provided `injury.csv` file and create subfolders for scripts (e.g. `R/`), output (e.g. `figures/`, `reports/`), and notes.\
+
+    -   Initialize an R Markdown file for Task 1 (e.g. `Injury_Analysis_2025.Rmd`) and one for Task 2 (e.g. `Injury_SOAP_2025.Rmd`).\
+
+    -   Install and load required R packages:
+
+        ``` r
+        install.packages(c("tidyverse","glmmTMB","broom","DHARMa","knitr","kableExtra"))
+        library(tidyverse); library(glmmTMB); library(DHARMa); …
+        ```
+
+2.  **Familiarise Yourself with the Data**
+
+    -   Read in the CSV and inspect its structure:
+
+        ``` r
+        data <- read_csv("injury.csv")
+        glimpse(data)
+        summary(data)
+        ```
+
+    -   Note key variables:
+
+        -   `Injuries` (count)\
+        -   `Hours` (exposure)\
+        -   `Safety` (categorical regime)\
+        -   `Experience` (numeric level)\
+        -   `bonus`, `training`, `university` (proportions)
+
+3.  **Perform Exploratory Data Analysis (EDA)**
+
+    -   Compute injury rates per 1,000 hours by group:
+
+        ``` r
+        data <- data %>% mutate(rate = Injuries / Hours * 1000)
+        ```
+
+    -   Visualise:
+
+        -   Boxplots or dotplots of `rate` by `Safety` regime.\
+        -   Scatterplots of `rate` vs. `Experience`, colouring by regime.\
+        -   Correlation plots for `bonus`, `training`, `university` against `rate`.\
+
+    -   Save all figures in `figures/` with informative filenames.
+
+4.  **Formulate Your Statistical Model**
+
+    -   Because `Injuries` is a count and `Hours` is exposure, propose a Poisson GLM with log link and offset `log(Hours)`.\
+    -   Include predictors motivated by the CEO's questions:
+        1.  **Safety regime** (to choose a best regime)\
+        2.  **Experience** (to test its effect)\
+        3.  **bonus**, **training**, **university** (to explore relationships)
+
+5.  **Fit an Initial Generalised Linear Model**
+
+    ``` r
+    fit0 <- glmmTMB(Injuries ~ Safety + Experience + bonus + training + university +
+                    offset(log(Hours)),
+                    family=poisson, data=data)
+    ```
+
+6.  **Check for Overdispersion**
+
+    -   Use DHARMa or calculate dispersion statistic:
+
+        ``` r
+        sim <- simulateResiduals(fit0)
+        testDispersion(sim)
+        ```
+
+    -   If overdispersion is significant, refit using a quasi‐Poisson or negative‐binomial family:
+
+        ``` r
+        fit1 <- update(fit0, family=nbinom2)
+        ```
+
+7.  **Refine the Model (Parsimony & Fit)**
+
+    -   Compare nested models via AIC or likelihood‐ratio tests, dropping non‑significant covariates one at a time.\
+    -   Arrive at a single final model that is "only as complex as it needs to be."
+
+8.  **Validate Model Assumptions and Goodness‐of‑Fit**
+
+    -   Examine residual plots (residuals vs. fitted, quantile plots).\
+    -   Test zero‐inflation if relevant.\
+    -   Report overdispersion parameter (if estimated).\
+    -   Quantify overall model fit (e.g. pseudo‑R², deviance).
+
+9.  **Extract and Summarise Your Results**
+
+    -   Use `broom::tidy()` to get coefficient estimates, standard errors, p‑values, and 95% confidence intervals.\
+    -   Back‑transform effects where needed (e.g. incidence‑rate ratios).\
+    -   Create clear tables in Rmd, e.g. via `kableExtra`.
+
+10. **Answer the CEO's Queries Clearly**
+
+    -   **Best safety regime**: report which regime has the lowest estimated injury rate (with CI).\
+    -   **Experience vs. safety regime**: quantify the effect of a one‑unit increase in experience on injury rate.\
+    -   **Bonus, training, university relationships**: summarise whether higher proportions correspond to lower rates, citing effect sizes and uncertainty.
+
+11. **Document Your Full Analysis in R Markdown**
+
+    -   Structure your `Injury_Analysis_2025.Rmd` as follows:
+        1.  **Introduction** (brief recap of scenario and questions)\
+        2.  **Data Description** (variables and sources)\
+        3.  **Methods** (model choice, offset, handling overdispersion)\
+        4.  **Results** (figures, tables, diagnostics)\
+        5.  **Discussion & Conclusions** (directly tied to each CEO query)\
+    -   Ensure each decision is justified and that uncertainty is communicated throughout.
+
+12. **Knit and Review Your Report**
+
+    -   Knit to PDF (`Injury_Analysis_2025.pdf`) and inspect for readability, figure/table numbering, and consistent styling.\
+    -   Check that all code chunks have meaningful captions and that no extraneous code is shown.
+
+13. **Create the SOAP Document for Task 2**
+
+    -   In `Injury_SOAP_2025.Rmd`, draft a 1--2‐page executive summary with:
+        -   **Dot‑pointed assertions** answering each CEO query.\
+        -   At least one well‑labelled graphic (e.g. bar chart of regime comparisons with CIs).\
+        -   Minimal method detail ("We used a negative‑binomial regression with log‐offset...").\
+        -   Explicit confidence intervals on any reported effect.
+
+14. **Compile and Export Your SOAP**
+
+    -   Knit to PDF (`Injury_SOAP_2025.pdf`) or HTML.\
+    -   Ensure it is visually engaging, succinct, and "advertises" your full analysis.
+
+15. **Assemble Your Submission Package**
+
+    -   In your project root, include exactly:
+        1.  `Injury_Analysis_2025.Rmd` + `Injury_Analysis_2025.pdf`\
+        2.  `injury.csv`\
+        3.  `Injury_SOAP_2025.Rmd` + `Injury_SOAP_2025.pdf`\
+        4.  (Optional) `README.txt` with any usage notes
+
+16. **Submit via Canvas Before the Deadline**
+
+    -   Aim to upload by Week 9 Friday well before 11:59 pm.\
+    -   Double‑check that all files are present and correctly named.

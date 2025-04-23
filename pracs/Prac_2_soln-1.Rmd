@@ -1,0 +1,99 @@
+---
+title: "Put your title here"
+author: "John Smith"
+date: "March 2025"
+output: html_document
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Task
+Your task is to perform a short regression analysis, investigating the relationship between two variables on the ``mtcars`` dataset. You will need to:
+
+1. Load the data
+2. Plot the data (``mpg`` versus ``wt``)
+3. Write up the linear model as an equation
+4. Fit the model.
+5. Plot the result.
+6. Write a conclusion
+
+Complete your an analysis in Rmarkdown document with the following headings:
+
+- Introduction
+- Data
+- Method
+- Results
+- Conclusion
+
+Additionally, you should attach a bibliography using a ``.bib`` file containing your references.
+
+## Introduction
+
+In 1974 the magazine *Motor Trends* measured the fuel consumption of 32 different designs of current model consumer automobiles. In addition to fuel consumption, 10 other variables were collected relating the designs. The interest in this analysis is the relationship between the fuel efficiency of the car its weight.
+
+## Data
+
+The dataset is contained in the base R distribution as ``mtcars``.
+```{r load_data}
+data("mtcars")
+head(mtcars)
+```
+The efficiency of the fuel is labelled ``mpg``, and is measured in Miles/gallon (US). The weight of the model is labelled ``wt``, and is measured per 1000 lb. These varibles can converted into SI units using standard conversion rates [@si]:
+```{r convert_units}
+#Convert Miles per Gallon (US) to kilometers per litre.
+MpGUS_to_kmpL <- 0.4251437075
+mtcars$mpg_si <- mtcars$mpg * MpGUS_to_kmpL
+
+#Convert pounds to kilograms.
+lb_to_kg <- 453.592
+mtcars$wt_si <- mtcars$wt * lb_to_kg
+```
+Since both variables are numeric, a scatterplot is the appropriate graphic to use.
+```{r scatter_plot}
+plot(data = mtcars, mpg_si ~ wt_si,
+     xlab = "Weight (kg)",
+     ylab = "Fuel Efficiency (km/L)")
+```
+
+## Model
+
+The scatterplot shows a negative relationship between weight and fuel efficiency. Therefore a linear model is proposed to explain the influence of weight on fuel efficiency. Let $mpg_i$ denote the fuel efficiency of model $i$ in km/L, and $wt_i$ denote the weight of model $i$ in $kg$. The proposed linear model is
+\[
+mpg_i = \alpha + \beta wt_i
+\]
+
+## Results
+
+The linear model is fitted using the ```lm``` function in base R:
+```{r linear_model}
+model1 <- lm(data = mtcars, mpg_si ~ wt_si)
+model1_summary <- summary(model1)
+print(model1_summary)
+
+#Compute confidence intervals for parameters:
+confint(model1,)
+```
+The resulting fit indicates a highly significant relationship (p < 0.001) between weight and fuel efficiency, with 74.6\% of variation in fuel efficiency explained by weight. The model predicts that for an increase in weight of 1 kg, the fuel efficiency decreases by $0.005 (0.003, 0.006)$ km/L.
+```{r residual_plots}
+par(mfrow = c(1,2))
+
+#Plot the model fit:
+predicted_values <- predict(model1)
+plot(mtcars$mpg_si ~ mtcars$wt_si, xlab = "Weight (kg)", ylab = "Fuel Efficiency (kg/L)")
+lines(predicted_values ~ mtcars$wt_si,col = "red")
+
+#Plot residuals versus weight:
+plot(model1$residuals ~ mtcars$wt_si, xlab = "Weight (kg)", ylab = "Residual (kg/L)")
+abline(h = 0, col = "red")
+```
+The linear model fits the midrange-weighted cars (approx. 1000 to 2000 kg) well, however the model tended to underpredict the fuel efficiency in light (< 1000 kg) and heavy cars (> 2000 kg). When plotted against the weight, the residuals appear to still show a trend.
+
+## Conclusions:
+
+There is a moderately strong negative relationship between the weight of the car and the fuel efficiency, indicating that weight is a good predictor variable. The linear model with weight showed weight as a significant variable and explained a high degree of variation between car models, however the residuals indicate there may be a trend that is not captured with a linear term. A future model with a quadratic term will be investigated.
+
+## Bibliography:
+
