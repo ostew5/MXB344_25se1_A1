@@ -1,178 +1,430 @@
 ---
+title: "Injury Analysis 2025"
 output:
   pdf_document: default
   html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
-# Injury Analysis 2025
 
-## Introduction
+# Context
 
-Due to a recent unfortunate accident in South America public concerns about our 
-company's workplace safety practicies have been voiced and are requesting 
-answers. 
+Due to a recent unfortunate accident in South America public concerns
+about our company's workplace safety practicies have been voiced and are
+requesting answers.
 
-As a global industrial manufacturing company operating internationally, ensuring 
-compliance with local industrial regulations has split the company into unique
-safety regimes, all of which are under the microscope of the public eye.
+As a global industrial manufacturing company operating internationally,
+ensuring compliance with local industrial regulations has split the
+company into unique safety regimes, all of which are under the
+microscope of the public eye.
 
-### Purpose and Research Questions
+The purpose of this report is to perform an analysis of workplace injury
+data to help inform our response to recent journalist questions.
 
-The purpose of this report is to perform an analysis of workplace injury data to 
-help inform our response to these questions:
+# Research Questions
 
-1. Of the various safety regimes in place across your company, which one would 
-you recommend become the international standard for your company, based solely 
-on injury prevention performance?
+To help inform the CEO's response to this crisis, she has provided data
+on workplace injury within the company, as well as research questions to
+guide the analysis.
 
-1. It has been suggested by senior management that industry experience is more 
-important than the safety regime when it comes to preventing injuries. His idea 
-is that a policy should be developed that is directly related to lowering 
-employee turnover will reduce injury rates. Does the 
-available data support this assertion?
+1.  Of the various **safety regimes** in place across your company,
+    which one would you recommend become the international standard for
+    your company, based solely on injury prevention performance?
 
-1. Is there any relationship between:
+2.  It has been suggested by senior management that industry
+    **experience** is more important than the safety regime when it
+    comes to preventing injuries. His idea is that a policy should be
+    developed that is directly related to lowering employee turnover
+    will reduce injury rates. Does the available data support this
+    assertion?
 
-  - Injuries and the annual bonuses a proportion of employees received  
-  - Injuries and whether staff have received any formal external qualifications 
-e.g. external safety training or a university degree.
+3.  Is there any relationship between:
 
-## Summary of the Available Data
+-   Injuries and the annual **bonuses** a proportion of employees
+    received\
+-   Injuries and whether staff have received any formal external
+    **qualifications** e.g. external safety training or a university
+    degree.
 
-The data contains the counts of injuries and hours worked aggregated by the 
-experience level of the workers for the last 12 months of operation. Each column 
-of the dataset is:
+# Summary of Available Data
 
-- `record_id` - a **unique key** for the group of workers, by experience level
-- `Injuries` - count of injuries in the group 
-- `Safety` - the safety regime in place for the group
-- `Hours` - the total hours worked by the group
-- `Experience` - the experience level of the group
-- `bonus` - proportion of the group that recieved an annual bonus last year
-- `training` - proportion of the group who have completed external safety 
-training
-- `university` - proportion of the group who have at least one university degree
+The data provided for this report `injury.csv` contains counts of
+`Injuries` and `Hours` worked for the past 12 months of operation,
+aggregated by the `Experience` level of the workers and the workplace
+`Safety` regime in place at their factory as well as other variables
+that may have an affect on the number of `Injuries` at the factory.
 
-### Install and load required R packages:
+More specifically:
 
-``` {R}
-library(GGally)
-library(ggpubr)
-library(tidyverse)
-```
+-   `Injuries` – count of injuries in the group\
+-   `Safety` – the safety regime in place for the group\
+-   `Hours` – total hours worked by the group, e.g. if 2 workers worked
+    10 hours, that's 20 hours total
+-   `Experience` – the experience level of the group\
+-   `bonus` – proportion of the group who received an annual bonus last
+    year\
+-   `training` – proportion of the group who have completed external
+    safety training\
+-   `university` – proportion of the group who have at least one
+    university degree
 
-### Open and read CSV data:
+It is also important to note that there is no provided information on
+how many workers there are per group, or if all the groups have the same
+amount of workers. Therefore, for the purposes of this report, it is
+assumed that the number of workers in each group is insignificant to the
+number of Injuries that happens within a `report_id`
 
-``` {r}
+# Data Processing / EDA
+
+To inform the CEO with the relevant information to respond to journist's
+questions, an Exploratory Data Analysis was conducted.
+
+## Load data and libraries
+
+```{r}
 data <- read.csv("injury-3.csv")
 ```
 
-## Data Processing and Exploratory Data Analysis (EDA)
+```{r}
+# code credit to: https://statsandr.com/blog/an-efficient-way-to-install-and-load-r-packages/
 
-After viewing the dataset in its tabular form, it was theorized that there 
-could be an interaction between `Injuries` and `Hours` due to colision theory 
-where the longer the workers work within the `record_id` the more `Injuries` 
-will occur.
+# Package names
+packages <- c("GGally", "ggpubr", "tidyverse", "backports", "patchwork", "MASS")
 
-Therefore, in addition to the provided dataset, the `Injury` column will be mutated with 
-the `Hours` column to provide a standardized, `Injury.Rate` column, equivalant 
-to:
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
 
-$$
-\text{Injuries.Rate} = \frac{\text{Injuries}}{\text{Hours}} \times \text{100 000}
-$$
-
-``` {r}
-data <- data %>% # inplace modification of data dataset
-  mutate(Injuries.Rate = (Injuries / Hours) * 100000) # Injuries.Rate = No. Injuries per 100 000 Hours
+# Packages loading
+invisible(lapply(packages, library, character.only = TRUE))
 ```
 
+## Uni-variate Observations
 
-``` {r, message=FALSE, warning=FALSE, results='hide'}
-p <- ggpairs(data)
-ggsave("figures/ggpairs_data.png", plot = p, dpi = 300, width = 10, height = 10)
-p <- ggpairs(data, columns=c(
-  "record_id",
-  "Injuries",
-  "Safety",
-  "Hours",
-  "Experience",
-  "Injuries.Rate"
-))
-ggsave("figures/ggpairs_data_sigcorr.png", plot = p, dpi = 300, width = 10, height = 10)
-```
-
-![](figures/ggpairs_data.png)
-![](figures/ggpairs_data_sigcorr.png)
-
-From the above graphs the following interactions have the highest correlation:
-
-- Injuries:record_id*
-
-  Where the number of `Injuries` tends to increase as the `record_id` increases
-  as the `record_id`. As the `record_id` is derived from the `Safety` regime and 
-  `Experience` of the workers this means that the interaction visible here is 
-  coming from both or either `Safety` and `Experience`.
-
-- Safety:record_id***
-
-  As expected, there is an interaction between `Safety` and `record_id` this is 
-  due to the `record_id` being an aggregated result from `Safety` and
-  `Experience`.
-
-- Safety:Injuries***
-
-  From this, there is a correlation between the `Safety` and the number of 
-  `Injuries` from the rough correlation scale '***', this is a significant 
-  correlation that may indicate that some Safety regimes are better than others 
-  at preventing injury, or it could also indicate that some Safety regimes may 
-  classify different things as an injury and as such will be reported or not 
-  reported as such.
-
-- Hours:Injuries***
-
-  This somewhat credits the assumption that as `Hours` increased the `Injuries` 
-  would also increase, which is why `Injuries.Rate` was created to reduce the 
-  affectes of collision theory, where the longer the workers worked in a record, 
-  the more `Injuries` would occur.
-
-- Hours:Safety***
-
-  This is interesting, `ggpairs` has detected a correlation between the number 
-  of `Hours` in a `record_id` and the `Safety` regime in-place, suggesting that
-  some `Safety` reigme's have different requirments on how long workers can  
-  work.
-
-- Injuries.Rate:Experience***
-
-  There is also a correlation between the calculated `Injuries.Rate` and the 
-  workers `Experience`, referring to the image, this is a strong negative 
-  correlation, therefore, as expected, as the workers are more experienced 
-  within the group, the less injuries occur.
-  
-### `Injuries` and `record_id` interaction
-
-As identified above, the number of `Injuries` appears to interact with 
-`record_id`, however, it is the least significant of the whole list of 
-interactions. After manually inspecting the tabular raw data a weird pattern 
-emerges with how the `record_id` was selected, the pattern is as follows:
-
-- `Safety` is broken into 2 repeated groups 1 - 4 and 1 - 4 again
-- for each value of `Safety`, `Experience` goes from 4 - 1
-- as `record_id` increases, `Safety` increases until 4 and then starts 
-again at 1
-
-This pattern can also be seen from the ggpairs plots where the `Injuries` 
-increases in repeating patterns for the `Injuries`:`record_id` interaction.
-
-While, `record_id` isn't that significant in itself, the patterns emerging from it
-suggest there is a 2-way interaction for:
-
-$$
-\text{Injuries} = \beta_0+\beta_1\cdot\text{Experience}+\beta_2\cdot\text{Safety}+\beta_3\cdot(\text{Experience}\cdot\text{Safety})
-$$
-This can be tested with the `lm()` function:
+Firstly, the raw tabular data was inspected to find any uni-variate
+distributions of interest.
 
 ```{r}
-model <- lm(Injuries ~ Experience * Safety, data = data)
-summary(model)
+nrow(data) # get this to use for histogram bins later
 ```
+
+```{r}
+vars <- names(data)
+
+plots <- lapply(vars, function(v) {
+  ggplot(data, aes(x = .data[[v]])) +
+    geom_histogram(bins = (nrow(data) %/% 9)) # 72 / 8 = 9
+})
+
+wrap_plots(plots, nrow = 2)
+```
+
+```{r}
+min(data$Hours)
+max(data$Hours)
+```
+
+From these plots, the following observations can be made about the data:
+
+-   `record_id` - as expected, are roughly sequential and uniform across
+    the histogram, no obvious missing values can be seen.
+
+-   `Injuries` - shows a strong right skewed distribution that also may
+    be exponential, suggesting a poisson regression may be used to
+    predict `Injuries`.
+
+-   `Safety`- four discrete spikes at 1, 2, 3, 4 show that `Safety` is a
+    **categorical factor** describing 4 different `Safety` regime.
+
+-   `Experience` - also show discrete spikes at 1, 2, 3, 4 showing that
+    `Experience` is also a **categorical factor** describing 4 different
+    `Experience` levels, however, 2 and 3 are slightly under represented
+    compared to 1 and 4.
+
+-   `Hours` - also shows a strong right skewed distribution, and, using
+    `min` & `max(data$Hours)` can be seen that the range is
+    $3474-2135146$. With a similar uni-variate distribution to
+    `Injury` - as well as `Hours` worked, intuitively being a factor
+    that causes injury - this supports using an $\text{Injury Rate}$ per
+    $\text{100 000}$ `Hours`, or, due to both following an exponential
+    distribution, using the $\log{(\text{Injury Rate})}$ for further
+    multivariate analysis and $\log(\text{Hours})$ as the offset
+    function when fitting a model to the data.
+
+-   `bonus`, `training` and `university` - either weak right or left
+    skews can be observed in these graphs. They all appear to be roughly
+    normally distributed from 0 - 1 and all are **continuous factors**,
+    however nothing meaningful can be extracted from just uni-variate
+    analysis and more analysis is required to understand if these
+    factors play any role in understanding injury prevention.
+
+With the uni-variate analysis, it can be seen that the most suited GLM
+for modelling this data-set would be a Poisson Regression model. It can
+also be seen that using
+$\log{\frac{\text{Injuries}}{\text{Hours}}}\cdot\text{100 000}$ to model
+this Poisson Regression model could be used for easier readability.
+
+## Multi-variate Observations
+
+With the uni-variate observations done,
+$\log{\frac{\text{Injuries}}{\text{Hours}}}\cdot\text{100 000}$ will now
+be used to conduct a multi-variate analysis to find significant factors.
+
+`boxplots` can be used for the categorical, `Safety` and `Experience`
+variables in the data-set, whereas `bonus`, `training` and `university`
+are indiscreet, continuous variables requiring scatter-plots for
+multivariate analysis. All the variables will be plotted against the
+$\log$ injury rate.
+
+### Categorical Variables
+
+```{r, warning=FALSE}
+data$Safety <- as.factor(data$Safety)
+
+p1 <- ggplot(data, aes(x = Safety, y = log(Injuries / Hours * 100000))) +
+  geom_boxplot() +
+  labs(x = "Safety", y = "log(Injury Rate)")
+
+p2 <- ggplot(data, aes(x = Safety, y = Injuries)) +
+  geom_boxplot() +
+  labs(x = "Safety", y = "Injuries")
+
+p1 + p2
+```
+
+From the above $\log(\text{Injury Rate})$ & `Injuries` vs `Safety` plots
+it can be seen that, while more total Injuries have occurred when
+`Safety` regime 3 is in-place, it doesn't have a significantly higher
+$\log(\text{Injury Rate})$ meaning that more observation is required
+when looking at the model to determine whether or not `Safety` regime is
+relevant.
+
+```{r, warning=FALSE}
+data$Experience <- as.factor(data$Experience)
+
+p1 <- ggplot(data, aes(x = Experience, y = log(Injuries / Hours * 100000))) +
+  geom_boxplot() +
+  labs(x = "Experience", y = "log(Injury Rate)")
+
+p2 <- ggplot(data, aes(x = Experience, y = Injuries)) +
+  geom_boxplot() +
+  labs(x = "Experience", y = "Injuries")
+
+p1 + p2
+```
+
+From the above $\log(\text{Injury Rate})$ & `Injuries` vs `Experience`
+plots it can be seen that, there is a very strong negative correlation
+between `Experience` level and the $\log(\text{Injury Rate})$,
+indicating that a large amount of the variance in the
+$\text{Injury Rate}$ can be explained with the `Experience` of the
+factory workers, supporting senior management's suggestion that industry
+`Experience` is important for preventing `Injuries` , however, more
+research is required to say whether `Safety` regime is not useful, as
+senior management also suggests.
+
+### Continuous Variables
+
+```{r}
+p1 <- ggplot(data, aes(x = bonus, y = log(Injuries / Hours * 100000))) +
+  geom_point() +
+  labs(x = "bonus", y = "log(Injury Rate)")
+
+p2 <- ggplot(data, aes(x = training, y = log(Injuries / Hours * 100000))) +
+  geom_point() +
+  labs(x = "training", y = "log(Injury Rate)")
+  
+p3 <- ggplot(data, aes(x = university, y = log(Injuries / Hours * 100000))) +
+  geom_point() +
+  labs(x = "university", y = "log(Injury Rate)")
+
+p1 + p2 /
+p3
+```
+
+The continuous variables don't seem to have much meaningful relation to
+the $\log(\text{Injury Rate})$ when directly plotted against each other,
+more observation is required when modelling to determine if the
+variables `bonus`, `training` and `university` have any compounded
+affect on the $\log(\text{Injury Rate})$.
+
+# Modelling Approach and Justification
+
+## Poisson Regression
+
+$$
+p(Y=y|\lambda)=\frac{\lambda^y\exp{(-\lambda)}}{y!},\text{for }y=0,1,\cdots
+$$
+
+As previously understood, the number of `Injuries` in a `record_id`
+follow an exponential function, alongside `Hours` following a similar
+distribution, these facts support using a Poisson regression algorithm
+with the $\log{(\text{Hours})}$ for the offset function.
+
+### Starting with a basic model with all the main effects
+
+Firstly, a basic model containing all the main effects of the dataset.
+
+```{r}
+fit <- glm(
+  Injuries ~ offset(log(Hours)) + Safety + Experience + bonus + training + university,
+  family = "poisson",
+  data = data
+)
+summary(fit)
+```
+
+Unexpectedly, the model appears to have pulled reason from the chaos in
+the variables `bonus` and `training`, and, although much less
+significant, the effect of `university` is only $7.88\%$ due to chance.
+This shows that in an all encompassing model, these seemingly random
+variables do have an effect on the final $\log{(\text{Injury Rate})}$
+warranting further analysis.
+
+### Let R decide which interactions are important
+
+With the discoveries in the initial model, modelling the main effects,
+`stepAIC` from `MASS` is used to choose a model by AIC in a Stepwise
+Algorthm:
+
+```{r}
+step_fit <- stepAIC(
+  fit,
+  scope = ~ (Safety + Experience + bonus + training + university)^2,
+  direction = "both"
+)
+```
+
+### Compare models
+
+```{r}
+AIC(fit, step_fit)
+BIC(fit, step_fit)
+summary(step_fit)
+```
+
+While including 3-way interactions may reduce the AIC, such complexity
+offers little practical value. Moreover, none of the potential 3-way
+relationships in the data-set are theoretically meaningful, and their
+inclusion would likely just result in over-fitting rather than insight.
+
+# Validity of Model and Modelling Results
+
+These results align with the previous relationships observed in the
+Multi-variate analysis, however, interestingly, `Safety` regime 4
+appears to have a statistically significant relationship causing a
+higher $\log{(\text{Injury Rate})}$ with `Safety` regime's 1, 2 and 3
+causing statistically insignificant differences in
+$\log{(\text{Injury Rate})}$. Another expected observation from the
+fitted model is the `Experience` values, as `Experience` level
+increases, significant decreases in $\log{(\text{Injury Rate})}$ can be
+seen from the increasingly negative coefficient estimates. The final
+model's fit achieves a good $\text{AIC}$ score of $1064.0$ a
+$\Delta-492.7$ improvement when compared to the previous, $1556.7$,
+achieved by the base model.More explanation behind the statistical
+significance of `bonus`, `training` and `university` is also uncovered
+in the final model.
+
+# Recommendations and Conclusions
+
+## Answers to Research Questions
+
+### 1. Recommended Safety Regime
+
+Based on the final model, **Safety Regime 3** is linked with the lowest
+$\log{(\text{Injury Rate})}$ with a coefficient of $\sim-3.05$ where
+$-3.05<\min{\{0.00, -1.00, -1.02\}}$ . This safety regime proves to be
+effective at using `bonuses` as incentives to reduce injury in high risk
+jobs, as well as ensuring workers are propery trained and qualified for
+high risk jobs. As such, it is recommended that **Safety Regime 3** is
+adopted as an international standard for the company. Moreover, further
+research into local regulations and potential legal constraints should
+be conducted to ensure that the international implementation of this
+Safety Regime complies with all applicable laws in each operating
+region.
+
+### 2. Importance of Industry Experience vs Safety Regime
+
+The final model supports senior management's claims that Industry
+Experience is a very important factor, where **the more experienced the
+workers are, the less injuries occur**. However, `Safety` Regime still
+contributes significantly to the $\log{(\text{Injury Rate})}$ within the
+injury reports.
+
+### 3. Influence of `bonuses`, `training` and `university`
+
+#### `bonuses`
+
+From the final model it can be seen that `bonuses`, by their-selves,
+have a slight negative correlation with the $\log{(\text{Injury Rate})}$
+showing that giving a worker a bonus, in and of itself reduces injuries.
+However, two way interactions, such as `Experience:bonus`,
+`Safety:bonus`, both produce positive correlations for predicting the
+$\log{(\text{Injury Rate})}$ for all factors of `Experience` and
+`Safety`. Logically this positive correlation makes sense as more
+experienced workers would handle difficult, and possibly more risky jobs
+and different safety regimes may use bonuses as incentives for those
+more risky jobs. Linking back to `bonuses`'s coefficient is negative, it
+shows that the incentives in these theoretically high risk jobs do, in
+fact, work at reducing injuries in these jobs.
+
+#### `training`
+
+Alike `bonuses`, `training` also has a slight negative coefficient in
+the final model where training proves effective at reducing injury in
+factories. With the interaction between `training` and `Safety` it can
+be seen that for regimes 2 and 4, `training` doesn't have much effect on
+the $\log{(\text{Injury Rate})}$, however, for regime 3, a significantly
+higher number of injuries occur as `training` increases. As this safety
+regime is largely effective at reducing injury it can't be simply
+assumed that the training in this regime is just ineffective, and this
+could be due to this regime giving more training to those working in
+higher risk jobs within the factory. More investigation is required to
+determine if this is true or if the `training` within Safety Regime 3
+needs improvement. As expected, the interaction between `training` and
+`Experience` appears to go hand in hand at preventing injury within the
+factories, the more experienced a worker is and the more training they
+receive, the lower their chances are of injuring themselves. The
+interaction between `training` and `bonus` was also deemed significant
+by $\text{AIC}$ tests, showing that as these variables increase, the
+rate of injury increases, this observation supports the theory that
+`bonuses` are given to those in high risk jobs that require more
+`training`.
+
+#### `university`
+
+The model follows intuition where the more qualified a group of workers
+are, the less injuries occur with a slightly negative but significant
+correlation between `university` and $\log{(\text{Injury Rate})}$. A
+similar trend to `training` can be seen with the interactions between
+`Safety` and `Experience` where safety regime 3 is giving higher risk
+jobs to more qualified workers. Where the most experienced workers with
+qualifications show a negative correlation with injury, lowering injury
+rates with highly experienced and qualified workers.
+
+## Conclusion
+
+This report used a Poisson Regression Algorithm to fit a GLM to
+workplace injury data, incorporating the whole dataset which includes:
+the number of `Injuries` and total `Hours` worked by all workers in the
+record, aggregated by the `Safety` regime of the factory and
+`Experience` of the workers, including percentages for the proportion of
+workers with `bonuses`, `training` and `university` degrees or
+qualifications within the group. The final model achieved a strong fit
+$\text{AIC : }1064.0$ confirming key relationships:
+
+-   **Safety Regime 3** is most effective at injury prevention compared
+    to other regimes in-place.
+
+-   **More experience** significantly reduces injury rates.
+
+-   Bonuses, training and university degrees when utilized correctly
+    reduce injury rates.
+
+A comprehensive injury reduction strategy should be put in action to
+implement Safety Regime 3 internationally, retain experienced workers
+and refine the usage of bonuses, training and implement education
+programs to increase the proportion of qualified workers.

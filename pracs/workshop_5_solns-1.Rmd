@@ -1,0 +1,285 @@
+---
+title: "Workshop 5 solns"
+author: "James McGree"
+date: "1 April 2025"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+```{r packages, include=TRUE}
+library(tidyverse)
+library(MASS)
+library(ggpubr)
+#install.packages("DHARMa")
+library(DHARMa)
+#install.packages("AER")
+library(AER)
+
+```
+
+The following data-set contains a set of dummy variables for self-reporting survey into extramarital affairs. Respondents were asked of their level of religious belief (referred to here as religiosity), and the level of happiness in their marriage (referred to here as marriage happiness). The decision was made to code these dummy variables into factors. See the R file dummy_to_factor.R for the function converting a set of (0,1)-dummy variables to a factor.
+
+```{r data, include=TRUE}
+#Load the raw data:
+affairs_data <- read.csv(file = "affairs.csv")
+
+affairs_data_recoded <- affairs_data[,c("naffairs","kids")]
+affairs_data_recoded$kids <- factor(affairs_data_recoded$kids)
+
+
+#Convert from dummy variables to factors:
+source("dummy_to_factor.R")
+affairs_data_recoded$happiness <- dummy_to_factor(
+  dummy_vars = affairs_data[,4:8],base_included = TRUE
+)
+
+affairs_data_recoded$religiosity <- dummy_to_factor(
+  dummy_vars = affairs_data[,9:13],base_included = TRUE
+)
+
+head(affairs_data_recoded)
+
+```
+
+```{r sum, include=TRUE}
+summary(affairs_data_recoded)
+
+```
+
+Some basic exploratory analysis shows 601 subjects, and a mean number of affairs of 3.37, ranging from 0 to 17. The observational study is not balanced by group, showing only 16 subjects marking "very unhappy" for their marriage happiness. The low count for some categories may need to be considered, especially when considering interactions.
+
+## Exploratory Visualisations
+
+Below are some examples of plots that could be used to explore the data.
+
+```{r sum2, include=TRUE}
+happiness_labels <- c(
+  "Very unhappy","Unhappy","Average","Happy","Very happy")
+
+religiosity_labels <- c(
+  "Anti-","Not","Slightly",
+  "Somewhat","Very")
+
+p1 <- ggplot(data = affairs_data_recoded,
+       mapping = aes(
+         x = happiness,
+         y = log(naffairs+1),
+       )) +
+  geom_boxplot() +
+  scale_x_discrete(labels = happiness_labels)+
+  theme(axis.text.x = element_text(angle = -45,vjust = 0,hjust = 0)) +
+  labs(x = "Marriage Happiness",y = "Log number of affairs")
+
+p2 <- ggplot(data = affairs_data_recoded,
+       mapping = aes(
+         x = religiosity,
+         y = log(naffairs+1),
+       )) +
+  geom_boxplot() +
+  scale_x_discrete(labels = religiosity_labels)+
+  theme(axis.text.x = element_text(angle = -45,vjust = 0,hjust = 0)) +
+  labs(x = "Religiosity",y = "Log number of affairs")
+
+p3 <- ggplot(data = affairs_data_recoded,
+       mapping = aes(
+         x = kids,
+         y = log(naffairs+1)
+       )) +
+  geom_boxplot() +
+  scale_x_discrete(labels = c("None","Atleast one"))+
+  theme(axis.text.x = element_text(angle = -45,vjust = 0,hjust = 0)) +
+  labs(x = "Kids",y = "Log number of affairs")
+
+p4 <- ggplot(data = affairs_data_recoded,
+       mapping = aes(
+         x = happiness,
+         y = log(naffairs+1),
+         fill = religiosity
+       )) +
+  geom_boxplot() +
+  scale_x_discrete(labels = happiness_labels)+
+  scale_fill_discrete(labels = religiosity_labels) +
+  theme(axis.text.x = element_text(angle = -45,vjust = 0,hjust = 0)) +
+  labs(x = "Marriage Happiness",y = "Log number of affairs",fill = "Religiosity")
+
+p5 <- ggplot(data = affairs_data_recoded,
+       mapping = aes(
+         x = kids,
+         y = log(naffairs+1),
+         fill = happiness
+       )) +
+  geom_boxplot() +
+  scale_x_discrete(labels = c("None","Atleast one"))+
+  scale_fill_discrete(labels = happiness_labels) +
+  theme(axis.text.x = element_text(angle = -45,vjust = 0,hjust = 0)) +
+  labs(x = "Kids",y = "Log number of affairs",fill = "Marriage Happiness")
+
+p6 <- ggplot(data = affairs_data_recoded,
+       mapping = aes(
+         x = kids,
+         y = log(naffairs+1),
+         fill = religiosity
+       )) +
+  geom_boxplot() +
+  scale_x_discrete(labels = c("None","Atleast one"))+
+  scale_fill_discrete(labels = religiosity_labels) +
+  theme(axis.text.x = element_text(angle = -45,vjust = 0,hjust = 0)) +
+  labs(x = "Kids",y = "Log number of affairs",fill = "Religiosity")
+
+  ggarrange(
+    ggarrange(p1,p2,p3,ncol = 1, nrow = 3),
+    ggarrange(p4,p5,p6,ncol = 1, nrow = 3),
+    ncol = 2
+  )
+
+```
+
+Based on the exploratory plots, it appears as though those in very happy marriages have fewer affairs than those who are very unhappy.  There may also be a difference between religiosity in terms of the number of affairs.  The effect of marriage happiness appears to differ by religiosity and whether the couple has kids.  Similarly, the effect of number of kids may vary by religiosity.
+
+## Poisson Model Choice
+
+We shall initially choose a Poisson GLM to model the number of affairs, with kids, happiness, and religiosity as covariates. Stepwise selection based on the AIC was chosen to determine which variables should appear in the model. Both backward and forward selection were used to determine the preferred model (based on AIC):
+
+```{r pois, include=TRUE}
+#Full model with all possible interactions for backwards selection:
+full_interaction_model <- glm(data = affairs_data_recoded,
+    formula = naffairs ~ kids * happiness * religiosity,
+    family = poisson(link = "log"))
+
+#Model with no variables present for forwards selection:
+null_model <- glm(data = affairs_data_recoded,
+    formula = naffairs ~ .,
+    family = poisson(link = "log"))
+
+#Perform backward and forward selection:
+backward_sel_model <- stepAIC(
+  full_interaction_model,direction = "backward",trace = 0)
+forward_sel_model <- stepAIC(
+  null_model,
+  scope = . ~ .^3, ## Allows forward selection to propose up to 3-way interaction.
+  direction = "forward",
+  trace = 0) ## trace = 0 prevents automatic output of stepAIC function.
+
+```
+
+
+```{r pois2,include=TRUE}
+#Inspect models:
+backward_sel_model$formula
+```
+
+```{r pois3,include=TRUE}
+forward_sel_model$formula
+```
+
+```{r pois4,include=TRUE}
+AIC(backward_sel_model)
+```
+
+```{r pois5,include=TRUE}
+AIC(forward_sel_model)
+```
+
+Backward and forward selection arrive at the exact same model, which includes all variables as well as the interaction of kids and happiness, and the interaction of happiness and religiosity. We can now inspect the residual plots using the simulation method provided by the DHARMa package:
+
+```{r pois6,include=TRUE}
+#Simulate residuals from the model:
+poisson_residuals = simulateResiduals(backward_sel_model)
+
+#Plot observed quantile versus expected quantile to assess distribution fit, and predicted value versus standardised residuals for unmodelled pattern in the residuals.
+plot(poisson_residuals)
+```
+
+There is very strong evidence to suggest that the distribution of the simulated quantiles do not follow a uniform distribution. Additionally, the quantiles of the residuals (red lines) show a non-uniform pattern for larger predicted values.
+
+```{r pois7,include=TRUE}
+disp_result <- dispersiontest(backward_sel_model)
+print(disp_result)
+```
+
+The p-value for the test of dispersion was highly significant ($z = 7.15, p= 4.4e-13$), which indicates that the data is more variable than expected under the Poisson GLM. Given this and that the Poisson regression model does not appear to fit the data well (based on the simulated residuals), maybe a Negative Binomial model might be preferred?
+
+Try main effects model, and compare to Poisson and Quasi-Poisson.
+
+```{r}
+fitnb <- glm.nb(naffairs~kids+vryunhap+unhap+avgmarr+hapavg+vryhap+antirel+notrel+slghtrel+smerel+vryrel, data=affairs_data) 
+resnb = simulateResiduals(fitnb)
+plot(resnb)
+
+pr <- residuals(null_model,"pearson")
+phi <- sum(pr^2)/df.residual(null_model)
+round(c(phi,sqrt(phi)),4)
+xb <- predict(fitnb) 
+g <- cut(xb, breaks=quantile(xb,seq(0,100,10)/100))
+m <- tapply(affairs_data$naffairs, g, mean)
+v <- tapply(affairs_data$naffairs, g, var)
+plot(m, v, xlab="Mean", ylab="Variance", 
+     main="Mean-Variance Relationship")
+x <- seq(0.01,7,0.02)
+lines(x, x, lty="dotdash")
+lines(x, x*phi, lty="dashed")
+lines(x, x*(1+x/fitnb$theta))  # VAR[Y] = mu + mu^2/theta
+legend("topleft", lty=c("dotdash","dashed","solid"), 
+       legend=c("Poisson", "Q. Poisson","Neg. Binom."), inset=0.05)
+
+```
+
+Suggested preference for Negative Binomial model.  Let's compare formally.
+
+## Negative-Binomial model
+
+```{r pois8,include=TRUE}
+#Specify full and null models:
+NB_full_model <- glm.nb(data = affairs_data_recoded,
+    formula = naffairs ~ kids * happiness * religiosity,
+    link = "log")
+NB_null_model <- glm.nb(data = affairs_data_recoded,
+    formula = naffairs ~ .,
+    link = "log")
+
+#Perform backward and forward selection:
+NB_backward_sel_model <- stepAIC(object = NB_full_model,direction = "backward",trace = 0)
+NB_forward_sel_model <- stepAIC(NB_null_model,scope = . ~ .^3, direction = "forward",trace = 0)
+
+
+#Inspect models:
+formula(NB_backward_sel_model)
+```
+
+```{r pois9,include=TRUE}
+formula(NB_forward_sel_model)
+```
+
+```{r pois10,include=TRUE}
+AIC(NB_backward_sel_model)
+```
+
+```{r pois11,include=TRUE}
+AIC(NB_forward_sel_model)
+```
+
+The lowest AIC is the backwards selection model, which only includes religiosity and happiness as variables.
+
+```{r pois12,include=TRUE}
+NB_residuals = simulateResiduals(NB_backward_sel_model)
+plot(NB_residuals)
+```
+
+The residual plots still show significant deviation from the uniform distribution, however, the deviation is smaller than for the Poisson model. Additionally, there may be a small pattern in the residuals when plotted against the predicted values, although this looks minor.
+
+```{r poisb,include=TRUE}
+summary(NB_backward_sel_model)
+```
+
+```{r poisa,include=TRUE}
+summary(NB_backward_sel_model)$coefficients[,4]
+
+```
+
+The coefficient estimates of the negative binomial GLM fit indicate that the number of affairs is significantly lower for very happy marriages (pvalue: 6.57e-04) compared to very unhappy marriages. Additionally subjects who identified as being very religious had significantly lower number of affairs compared to those who were antireligious (pvalue: 0.000253).  Overall, the Possion GLM was a poor fit to the data (mean and variance).  This led to the consideration of the negative binomial model. Support for the negative binomial model was also indicated by AIC which was 3155.46 for the best Poisson regression model found and 2737.36 for the best negative binomial model found (substantially lower).  It was found that the negative binomial model did not perfectly fit the data.  Given this, it might be worth recommending data on additional variables be captured into the future as it appears as though there is some trend in the data that is not being described very well by the variables at hand.
+

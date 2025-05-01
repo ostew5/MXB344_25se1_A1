@@ -6,7 +6,7 @@
 library(GGally)
 library(ggpubr)
 library(tidyverse)
-data <- read.csv("laptops.csv",header=TRUE)
+data <- read.csv("pracs/laptops-1.csv",header=TRUE)
 
 # (a) Which variables do you think will be useful in predicting release price? 
 # Are any of these variables related to each other? (For example, CPU Frequency and release year, or cores and threads.)
@@ -16,7 +16,8 @@ names(data)
 # (b) Construct scatterplots to examine the relationships between any of these "predictor" variables. 
 # If the relationships are strong, you may be able to remove them from the list of possible predictors of release price.
 
-ggpairs(data)
+p <- ggpairs(data)
+ggsave("prac/ggpairs_data.png", plot = p, dpi = 300, width = 20, height = 20)
 ggpairs(data,columns=c(
   "Release.Price....",
   "RAM..GB.",
@@ -119,3 +120,4 @@ g<-ggplot(data=laptops_fit.df,aes(x=Threads,y=.resid))+
     geom_point()+
     labs(x="# Threads",y="Residuals")
 ggarrange(e,f,g,ncol=3)
+

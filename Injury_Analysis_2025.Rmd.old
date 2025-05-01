@@ -1,0 +1,141 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+# Injury Analysis 2025
+
+## Introduction
+
+Due to a recent unfortunate accident in South America public concerns about our 
+company's workplace safety practicies have been voiced and are requesting 
+answers. 
+
+As a global industrial manufacturing company operating internationally, ensuring 
+compliance with local industrial regulations has split the company into unique
+safety regimes, all of which are under the microscope of the public eye.
+
+### Purpose and Research Questions
+
+The purpose of this report is to perform an analysis of workplace injury data to 
+help inform our response to these questions:
+
+1. Of the various **safety regimes** in place across your company, which one would 
+you recommend become the international standard for your company, based solely 
+on injury prevention performance?
+
+1. It has been suggested by senior management that industry **experience** is more 
+important than the safety regime when it comes to preventing injuries. His idea 
+is that a policy should be developed that is directly related to lowering 
+employee turnover will reduce injury rates. Does the 
+available data support this assertion?
+
+1. Is there any relationship between:
+
+  - Injuries and the annual **bonuses** a proportion of employees received  
+  - Injuries and whether staff have received any formal external **qualifications** 
+e.g. external safety training or a university degree.
+
+## Summary of the Available Data
+
+The data contains the counts of injuries and hours worked aggregated by the 
+experience level of the workers for the last 12 months of operation. Each column 
+of the dataset is:
+
+- `record_id` - a **unique key** for the group of workers, by experience level
+- `Injuries` - count of injuries in the group 
+- `Safety` - the safety regime in place for the group
+- `Hours` - the total hours worked by the group over the 12 month period
+- `Experience` - the experience level of the group
+- `bonus` - proportion of the group that recieved an annual bonus last year
+- `training` - proportion of the group who have completed external safety 
+training
+- `university` - proportion of the group who have at least one university degree
+
+### Install and load required R packages:
+
+``` {R}
+# code credit to: https://statsandr.com/blog/an-efficient-way-to-install-and-load-r-packages/
+
+# Package names
+packages <- c("GGally", "ggpubr", "tidyverse", "backports")
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# Packages loading
+invisible(lapply(packages, library, character.only = TRUE))
+```
+
+### Open and read CSV data:
+
+``` {r}
+data <- read.csv("injury-3.csv")
+```
+
+## Data Processing and Exploratory Data Analysis (EDA)
+
+As the data explains, the `record_id` is simply a unique id for the record of 
+data stored it doesn't extend the data but simply uses `Safety` and `Experience`
+to group the data into more manageable chunks. Therefore, it will be ignored in 
+the analysis.
+
+Initially, ggpairs is used with `na.omit(data)` to inspect if any 
+multicolinearity exists and if any relationships are immediately obvious.
+
+``` {r}
+p <- ggpairs(na.omit(data))
+ggsave("figures/ggpairs_data.png", plot = p, dpi = 300, width = 10, height = 10)
+```
+
+![](figures/ggpairs_data.png)
+
+From the above graphs the following interactions have the highest correlation:
+
+- Injuries:record_id*
+
+  Where the number of `Injuries` tends to increase as the `record_id` increases
+  as the `record_id`. As the `record_id` is derived from the `Safety` regime and 
+  `Experience` of the workers this means that the interaction visible here is 
+  coming from both or either `Safety` and `Experience`.
+
+- Safety:record_id***
+
+  As expected, there is an interaction between `Safety` and `record_id` this is 
+  due to the `record_id` being an aggregated result from `Safety` and
+  `Experience`.
+
+- **Safety**:Injuries***
+
+  From this, there is a correlation between the `Safety` and the number of 
+  `Injuries` from the rough correlation scale '***', this is a significant 
+  correlation that may indicate that some Safety regimes are better than others 
+  at preventing injury, or it could also indicate that some Safety regimes may 
+  classify different things as an injury and as such will be reported or not 
+  reported as such.
+
+- Hours:Injuries***
+
+  This positive correlation makes sense as the longer the workers work, the 
+  longer they are exposed to risk which may cause injury. It could also mean 
+  that as the workers get more fatigued, they may make mistakes, leading to 
+  injury.
+
+- Hours:**Safety*****
+
+  This is interesting, `ggpairs` has detected a correlation between the number 
+  of `Hours` in a `record_id` and the `Safety` regime in-place, suggesting that
+  some `Safety` reigme's have different requirements on how long workers can  
+  work. This interaction should be investigated when looking into the first 
+  research question.
+
+With this, R is used to fit a linear model using all the variables in the \
+dataset
+
+```{r}
+model <- lm(Injuries ~ Safety * Hours + Experience, data = na.omit(data))
+summary(model)
+```

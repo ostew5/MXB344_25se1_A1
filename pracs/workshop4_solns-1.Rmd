@@ -1,0 +1,226 @@
+---
+title: "Workshop 4 solutions"
+author: "James McGree"
+date: "31 March 2025"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Initialise R session, exploratory analysis
+
+```{r readin, include=TRUE}
+#### Load libraries
+#library(tidyverse)
+library(reshape2)
+library(ggpubr)
+    
+#### Read in data
+my_data <- read.csv("infections_NR_plus.csv",header = TRUE)
+head(my_data)
+
+#### Data cleaning
+my_data$ward <- factor(my_data$ward,levels = 0:1)
+my_data$ward_recoded <- factor(my_data$ward_recoded,levels = 0:2)
+my_data$season <- factor(my_data$season,levels = 1:4)
+my_data$infections <- as.integer(my_data$infections)
+```
+
+The data set describes an observational study where the number of infections were counted over 24 months for 2 wards (coded as 0 and 1) in a hospital. The data show a second set of observations for ward 1, whereas there is only one set of observations for ward 0. In the ward\_recoded variable the second set of observations in ward 1 is recoded to 2, making a ternary factor with possible values 0, 1, and 2. The dataset also has a season variable with possible values 1,2,3,4, although it is unknown how the numerical encoding was performed.
+
+The following plots are of infection count stratified by combinations of other variables in the data set.
+
+```{r plots in, include=TRUE}
+
+inf_v_ward <- ggplot(data = my_data) + 
+  geom_boxplot(aes(y = infections, x = ward)) + 
+  labs(y = "Number of Infections", x = "Ward")
+
+inf_v_ward_recoded <- ggplot(data = my_data) + 
+  geom_boxplot(  aes(y = infections, x = ward_recoded)  ) + 
+  labs(y = "Number of Infections", x = "Ward (Recoded)")
+
+inf_v_month_ward_recoded <- ggplot(data = my_data) +
+  geom_line(aes(x = month, y = infections, group = ward_recoded, colour = ward_recoded)  ) + 
+  labs(y = "Number of Infections", x = "Month", colour = "Ward\n(Recoded)")
+
+inf_v_season_ward_recoded <- ggplot(data = my_data) +
+  geom_boxplot(aes(x = season, y  = infections, group = interaction(ward_recoded,season), 
+  fill = ward_recoded)) + 
+  labs(y = "Number of Infections", x = "Season", fill = "Ward\n(Recoded)")
+
+ggarrange(inf_v_ward_recoded,inf_v_ward, 
+  inf_v_month_ward_recoded,inf_v_season_ward_recoded,
+  ncol = 2,nrow = 2,labels  = c("A","B","C","D"))
+```
+
+There is a clear relationship between the number of infections and the ward, and this is clearer for Ward (Recoded) with the observations with ward\_recoded = 2 having substantially higher numbers of infections. From the plots there does not appear to be a relationship between the number of infections and the month, or season.
+
+```{r fit, include=TRUE}
+#Fit GLM with poisson distribution and log link function.
+m1.fit <- glm(
+  data = my_data, 
+  formula = infections ~ ward, 
+  family = poisson(link = "log"))
+
+#Output summary of the model:
+summary(m1.fit)
+```
+
+The model indicates that there is a significant increase in the number of infections between Ward 1 and Ward 2.  The deviance value for this model can be found in the fit object, here, called \texttt{m1.fit}.  The chi-squared test related to the goodness-of-fit of the model can be evaluated as follows:
+
+```{r dev, include=TRUE}
+#Plot 
+pchisq(m1.fit$deviance, df=m1.fit$df.residual, lower.tail=FALSE)
+```
+
+As can be seen, there appears to be strong evidence to reject the null hypothesis that the model is a reasonable fit to the data.  From lectures, we note that this can only be trusted when the mean rate for the Poisson regression model is relatively large.  Here the fitted values range from 3.75 to 6.1, so some caution should be used when interpreting the result of this test.
+
+
+```{r fit1, include=TRUE}
+#Plot 
+
+out <- influence(m1.fit)
+plot(my_data$ward,out$pear.res)
+pred <- fitted.values(m1.fit)
+rsp <- (my_data$infections-pred)/(sqrt(pred*(1-out$hat)))
+plot(my_data$ward,rsp)
+
+```
+
+The above boxplot shows that the median in each group is approximately 0 with the variance possibly increasing with ward.  This is expected as the mean response increases with ward (i.e. positive regression coefficient).
+
+```{r fit2, include=TRUE}
+#Plot 
+
+pred <- fitted.values(m1.fit)
+rsp <- (my_data$infections-pred)/(sqrt(pred*(1-out$hat)))
+plot(my_data$ward,rsp)
+
+```
+
+There is a minor change to the plot with the variance of distribution of residuals slightly increasing when ward = 0.  This is potentially expected as the residuals should have an approximate variance of 1 overall.
+
+## Models with alternative variables
+
+```{r fit2111, include=TRUE}
+m2.fit <- glm(data = my_data, formula = infections ~ ward_recoded, family = poisson(link = "log"))
+m3.fit <- glm(data = my_data, formula = infections ~ month, family = poisson(link = "log"))
+m4.fit <- glm(data = my_data, formula = infections ~ season + ward_recoded, family = poisson(link = "log"))
+```
+
+The log-likelihood, AIC, BIC were calculated using the base R functions for each of the four models: M1, M2, M3, and M4.
+
+```{r fit3, include=TRUE}
+#Create a list containing fitted model objects:
+model.list <- list(
+  "M1" = m1.fit,
+  "M2" = m2.fit,
+  "M3" = m3.fit,
+  "M4" = m4.fit
+)
+
+#Calculate three measures of fit: 
+#(See ?lapply and ?sapply for how to apply functions over a list.)
+logLiks <- sapply(model.list,FUN = logLik)
+aics <- sapply(model.list,FUN = AIC)
+bics <- sapply(model.list,FUN = BIC)
+```
+
+These values can be plotted or tabled:
+
+```{r fit4, include=TRUE}
+#Aggregate measures of fit into a single data-frame for plotting
+plot_data <- 
+  data.frame(
+    model = c("M1","M2","M3","M4"),
+    aic = aics,
+    bic = bics,
+    logL = logLiks
+  )
+
+#Display table with measures:
+knitr::kable(plot_data,row.names = FALSE,
+             col.names = c("Model","AIC","BIC","log-Likelihood"))
+```
+
+```{r fit5, include=TRUE}
+#Melt the data into long form for ggplot:
+long_plot_data <- melt(data = plot_data,
+                  id = "model",
+                  variable.name = "measure")
+
+#Plot together for comparison
+ggplot(
+  data = long_plot_data,
+  mapping = aes(
+    x = model,
+    y = value,
+    group = measure,
+    colour = measure
+  )
+) + geom_point()+
+  scale_colour_discrete(
+    breaks = c("aic","bic","logL"),
+    labels = c("AIC","BIC","log-Lik.")
+  ) +
+  labs(x = "Model",y = "Value", colour = "Measure")
+```
+
+The log-likelihood indicates that M4 (covariates: ward_recoded and season) is the best fitting model, however it is not appropriate to compare models with different numbers of parameters, since a model with more parameters can always fit the data better. Both AIC and BIC indicate that M2 (single covariate: ward_recoded) is the best choice, since M4 is penalised in these measures for having an extra covariate.
+
+## Nested model comparison
+
+Since M2 is nested inside M4 these two models can be compared using a $\chi^2$-test, with hypotheses:
+
+- H0: Additional parameter season is not needed to explain variation
+- H1: Additional parameter season is needed to explain variation
+
+```{r fit6,include=TRUE}
+anova(m2.fit,m4.fit,test="Chisq")
+```
+
+The p-value is not significant, so we tentatively accept that season is not needed and proceed with M2.
+
+## Overdispersion
+
+The dispersion $\phi$ can be estimated using the deviance $\hat{D}$ and $N-k$, where $N$ is the sample size, and $k$ is the number of parameters. If
+
+\[
+\hat{\phi} > 1 + 3 \sqrt{\frac{2}{N-k}},
+\]
+
+then this is a sign of overdispersion.
+
+```{r fit7,include=TRUE}
+Nmp <- m2.fit$df.residual
+phi_hat <- deviance(m2.fit)/Nmp
+phi_hat > 1 + 3*sqrt(2/Nmp)
+```
+
+There is no indication of overdispersion when fitting M2.
+
+## Outlier investigation given model M2
+
+```{r fit8,include=TRUE}
+par(mfrow = c(2,2))
+plot(m2.fit)
+```
+
+```{r fit9, include=TRUE}
+potential_outliers <- names(which(abs(residuals(m2.fit)) > -qnorm(0.05/2)))
+residuals(m2.fit)[potential_outliers]
+
+```
+
+According to the standard normal distribution, we can expect 3.6 standardised residuals to be greater in magnitude than 1.96, and there are 2 such residuals, which have values -2.2546249 and -2.2546249.
+
+## Conclusions
+
+Using the measures of fit AIC and BIC it was determined that M2 was the best fit, accounting for degrees of freedom. The log-likelihood indicated that M4 was the best fit, although this does not take into account the additional degree of freedom for M4. The AIC and BIC for M2 and M4 were close, however a $\chi^2$-test indicated that the extra season parameter in M4 was not necessary.
+
+The estimate for $\phi$ was $\hat{\phi}$=0.835, which was not high enough to indicate overdispersion.
+
+There were 2 observations with scaled residuals greater than 1.96, however they were not substantially larger so were not considered outliers.
